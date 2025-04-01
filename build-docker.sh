@@ -5,9 +5,9 @@
 
 GPU=""
 BASE_IMAGE="ubuntu:22.04"
-WHEEL_URL="https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-3.0.0.dev0-cp39-cp39-manylinux2014_x86_64.whl"
-CPP_WHEEL_URL="https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray_cpp-3.0.0.dev0-cp39-cp39-manylinux2014_x86_64.whl"
-PYTHON_VERSION="3.9"
+WHEEL_URL="https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-3.0.0.dev0-cp312-cp312-manylinux2014_x86_64.whl"
+CPP_WHEEL_URL="https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray_cpp-3.0.0.dev0-cp312-cp312-manylinux2014_x86_64.whl"
+PYTHON_VERSION="3.12.3"
 
 BUILD_ARGS=()
 
@@ -15,7 +15,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --gpu)
             GPU="-gpu"
-            BASE_IMAGE="nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04"
+            BASE_IMAGE="nvidia/cuda:11.4.3-cudnn8-runtime-ubuntu20.04"
         ;;
         --base-image)
             # Override for the base image.
@@ -39,6 +39,10 @@ while [[ $# -gt 0 ]]; do
             shift
             PYTHON_VERSION="$1"
         ;;
+        --docker-default-platform)
+            shift
+            export DOCKER_DEFAULT_PLATFORM="$1"
+        ;;
         *)
             echo "Usage: build-docker.sh [ --gpu ] [ --base-image ] [ --no-cache-build ] [ --shas-only ] [ --build-development-image ] [ --build-examples ] [ --python-version ]"
             exit 1
@@ -56,10 +60,12 @@ fi
 
 BUILD_CMD=(
     docker build "${BUILD_ARGS[@]}"
-    --build-arg BASE_IMAG="$BASE_IMAGE"
+    --build-arg BASE_IMAGE="$BASE_IMAGE"
     --build-arg PYTHON_VERSION="${PYTHON_VERSION}"
     -t "rayproject/base-deps:dev$GPU" "docker/base-deps"
 )
+
+echo Running — ${BUILD_CMD[@]}
 
 if [[ "$OUTPUT_SHA" == "YES" ]]; then
     IMAGE_SHA="$("${BUILD_CMD[@]}")"
@@ -76,12 +82,14 @@ fi
 
 RAY_BUILD_DIR="$(mktemp -d)"
 mkdir -p "$RAY_BUILD_DIR/.whl"
-wget --quiet "$WHEEL_URL" -P "$RAY_BUILD_DIR/.whl"
-wget --quiet "$CPP_WHEEL_URL" -P "$RAY_BUILD_DIR/.whl"
+wget "$WHEEL_URL" -P "$RAY_BUILD_DIR/.whl"
+wget "$CPP_WHEEL_URL" -P "$RAY_BUILD_DIR/.whl"
 cp python/requirements_compiled.txt "$RAY_BUILD_DIR"
 cp docker/ray/Dockerfile "$RAY_BUILD_DIR"
 
 WHEEL="$(basename "$WHEEL_DIR"/.whl/ray-*.whl)"
+
+echo Running — ${BUILD_CMD[@]}
 
 BUILD_CMD=(
     docker build "${BUILD_ARGS[@]}"
